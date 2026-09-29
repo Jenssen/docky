@@ -579,13 +579,18 @@ private struct FolderPopoverAction: Identifiable {
 private struct FolderPopoverItemView: View {
     let url: URL
 
+    @State private var thumbnail: NSImage?
+
     var body: some View {
         VStack(spacing: 8) {
-            Image(nsImage: IconCacheService.shared.previewIcon(forFileURL: url))
+            Image(nsImage: previewImage)
                 .resizable()
                 .interpolation(.high)
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 112, height: 112)
+                .task(id: url) {
+                    thumbnail = await IconCacheService.shared.loadPreviewThumbnailAsync(forFileURL: url)
+                }
 
             Text(displayName)
                 .font(.callout)
@@ -599,6 +604,14 @@ private struct FolderPopoverItemView: View {
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, minHeight: 158, alignment: .top)
         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    /// Image files show the file icon until their thumbnail has been decoded
+    /// off the main thread; already-decoded thumbnails render immediately.
+    private var previewImage: NSImage {
+        thumbnail
+            ?? IconCacheService.shared.cachedPreviewThumbnail(forFileURL: url)
+            ?? IconCacheService.shared.icon(forFileURL: url)
     }
 
     private var displayName: String {

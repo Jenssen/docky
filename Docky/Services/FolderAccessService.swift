@@ -24,6 +24,8 @@ final class FolderAccessService: ObservableObject {
     private let staleAfter: TimeInterval = 15
     private var contentsCache: [URL: (date: Date, items: [URL])] = [:]
     private var watchersByURL: [URL: FolderWatcher] = [:]
+    private var sortCache: [FolderSortCacheKey: (date: Date, items: [URL])] = [:]
+    private let maxSortCacheEntries = 32
 
     private init() {}
 
@@ -50,7 +52,26 @@ final class FolderAccessService: ObservableObject {
         sortedItems(in: contents(of: folderURL), sortMode: sortMode)
     }
 
+    /// Memoized for `staleAfter` seconds, same window as the contents cache.
+    /// Views read the sorted list several times per update (layout math plus
+    /// the grid itself), and every uncached sort re-reads resource values
+    /// from disk for each item.
     func sortedItems(in items: [URL], sortMode: FolderTileSortMode) -> [URL] {
+        let key = FolderSortCacheKey(items: items, sortMode: sortMode)
+        if let cached = sortCache[key],
+           Date().timeIntervalSince(cached.date) < staleAfter {
+            return cached.items
+        }
+
+        let sorted = uncachedSortedItems(in: items, sortMode: sortMode)
+        if sortCache.count >= maxSortCacheEntries {
+            sortCache.removeAll()
+        }
+        sortCache[key] = (Date(), sorted)
+        return sorted
+    }
+
+    private func uncachedSortedItems(in items: [URL], sortMode: FolderTileSortMode) -> [URL] {
         let entries = items.map(FolderSortEntry.init)
 
         return entries.sorted { lhs, rhs in
@@ -208,10 +229,12 @@ final class FolderAccessService: ObservableObject {
 
     func invalidateCache() {
         contentsCache.removeAll()
+        sortCache.removeAll()
     }
 
     private func invalidateCache(for folderURL: URL) {
         contentsCache.removeValue(forKey: folderURL.standardizedFileURL)
+        sortCache.removeAll()
     }
 
     private func handleWatcherEvent(for folderURL: URL) {
@@ -227,6 +250,11 @@ final class FolderAccessService: ObservableObject {
 private struct FolderWatcher {
     var ownerIDs: Set<String>
     let source: DispatchSourceFileSystemObject
+}
+
+private struct FolderSortCacheKey: Hashable {
+    let items: [URL]
+    let sortMode: FolderTileSortMode
 }
 
 private struct FolderSortEntry {
