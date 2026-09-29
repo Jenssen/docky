@@ -18,7 +18,11 @@ struct FolderTileView: View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .task(id: reloadKey) {
-                let sorted = FolderAccessService.shared.sortedContents(of: tile.url, sortMode: tile.sortMode)
+                let sorted = await FolderAccessService.shared.refreshedSortedContents(
+                    of: tile.url,
+                    sortMode: tile.sortMode
+                )
+                guard !Task.isCancelled else { return }
                 preview = Array(sorted.prefix(3))
                 preloadFanThumbnails(for: sorted)
             }
