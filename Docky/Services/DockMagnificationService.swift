@@ -138,3 +138,107 @@ struct DockMagnificationModel {
         return restSize + (maxSize - restSize) * falloff
     }
 }
+
+/// Magnified layout of the whole dock for one cursor position, resolved in
+/// a single walk over the tiles. Stateless like `DockMagnificationModel`,
+/// so a view computes it once per update and looks each tile up by id.
+struct DockMagnificationLayout {
+    struct Item {
+        let id: String
+        /// Resting extent along the dock axis.
+        let restExtent: CGFloat
+        /// Whether the tile takes part in magnification.
+        let magnifies: Bool
+    }
+
+    /// Magnified icon side per tile id. Tiles that are missing render at
+    /// their resting size.
+    let iconSizes: [String: CGFloat]
+    /// Sum of (magnified − rest) extent over every tile along the dock
+    /// axis. Strength is already baked in via the per-tile sizes.
+    let totalGrowth: CGFloat
+    /// Magnified axis position corresponding to the cursor's resting
+    /// position, used by the anchor offset to keep the under-cursor icon
+    /// pinned to the cursor.
+    let anchoredMag: CGFloat
+
+    /// - Parameters:
+    ///   - restIconSize: Resting icon side, the size magnification grows from.
+    ///   - cursor: Cursor position along the dock axis, in the same
+    ///     leading-relative space the items are laid out in.
+    ///   - magnifiedExtent: Along-axis extent of the item at the given index
+    ///     once its icon side is magnified to the given size.
+    init(
+        items: [Item],
+        spacing: CGFloat,
+        edgePadding: CGFloat,
+        restIconSize: CGFloat,
+        model: DockMagnificationModel,
+        cursor: CGFloat,
+        magnifiedExtent: (Int, CGFloat) -> CGFloat
+    ) {
+        // Rest centers: spacings are uniform across sections and dividers,
+        // so a single cumulative pass matches the rendered layout.
+        var iconSizes: [String: CGFloat] = [:]
+        iconSizes.reserveCapacity(items.count)
+        var runningOffset = edgePadding
+        for (index, item) in items.enumerated() {
+            if iconSizes[item.id] == nil {
+                iconSizes[item.id] = item.magnifies
+                    ? model.magnifiedExtent(
+                        restSize: restIconSize,
+                        restAxisCenter: runningOffset + item.restExtent / 2
+                    )
+                    : restIconSize
+            }
+            runningOffset += item.restExtent
+            if index < items.count - 1 {
+                runningOffset += spacing
+            }
+        }
+
+        var restCursor = edgePadding
+        var magCursor = edgePadding
+        var totalGrowth: CGFloat = 0
+        var anchoredMag: CGFloat? = nil
+
+        if cursor < edgePadding {
+            anchoredMag = cursor
+        }
+
+        for (index, item) in items.enumerated() {
+            if index > 0 {
+                let restGapStart = restCursor
+                restCursor += spacing
+                magCursor += spacing
+                if anchoredMag == nil, cursor < restCursor {
+                    let denom = spacing > 0 ? spacing : 1
+                    let fraction = (cursor - restGapStart) / denom
+                    anchoredMag = magCursor - spacing + fraction * spacing
+                }
+            }
+
+            let iconSize = iconSizes[item.id] ?? restIconSize
+            let magSize = iconSize > restIconSize
+                ? magnifiedExtent(index, iconSize)
+                : item.restExtent
+
+            let restTileStart = restCursor
+            let magTileStart = magCursor
+            restCursor += item.restExtent
+            magCursor += magSize
+
+            if anchoredMag == nil, cursor < restCursor {
+                let denom = item.restExtent > 0 ? item.restExtent : 1
+                let fraction = (cursor - restTileStart) / denom
+                anchoredMag = magTileStart + fraction * magSize
+            }
+
+            totalGrowth += magSize - item.restExtent
+        }
+
+        self.iconSizes = iconSizes
+        self.totalGrowth = totalGrowth
+        self.anchoredMag = anchoredMag ?? (cursor + totalGrowth)
+    }
+}
