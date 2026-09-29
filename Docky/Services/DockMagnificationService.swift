@@ -27,6 +27,11 @@ final class DockMagnificationService {
     /// nil when the pointer is outside the magnification region.
     private(set) var pointerLocation: CGPoint? = nil
 
+    /// Whether `pointerLocation` is set. Observed separately so views that
+    /// only care about the pointer being present are not invalidated by
+    /// every pointer move.
+    private(set) var isTrackingPointer = false
+
     /// Maps the cosine half-bell so that t=0 → 1 and t=1 → 0.
     /// Apple Dock's curve has been studied this way; not a perfect match
     /// but visually very close.
@@ -53,6 +58,9 @@ final class DockMagnificationService {
             // was driving back toward zero.
         } else {
             pointerLocation = location
+            if !isTrackingPointer {
+                isTrackingPointer = true
+            }
         }
         beginRamp(to: 1)
     }
@@ -100,6 +108,9 @@ final class DockMagnificationService {
         }
         if rampTarget == 0 {
             pointerLocation = nil
+            if isTrackingPointer {
+                isTrackingPointer = false
+            }
         }
         rampTimer?.invalidate()
         rampTimer = nil

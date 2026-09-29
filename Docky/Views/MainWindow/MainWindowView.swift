@@ -48,7 +48,7 @@ struct MainWindowView: View {
     }
 
     private var isTrackingMagnification: Bool {
-        dockSettings.magnification && magnification.pointerLocation != nil
+        dockSettings.magnification && magnification.isTrackingPointer
     }
 
     private var dockEdgeAlignment: Alignment {
