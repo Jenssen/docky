@@ -115,6 +115,78 @@ final class IconCacheService {
         return image
     }
 
+    /// Thumbnail extent in pixels for the folder popover grid, whose tiles
+    /// are 112pt (224px on Retina).
+    static let gridThumbnailPixelExtent = 256
+
+    /// Thumbnail extent in pixels for dock tile previews and the fan. A
+    /// magnified tile tops out around ~192pt, which is 384px on Retina, so
+    /// 512 keeps those surfaces downsampling rather than upscaling.
+    static let tileThumbnailPixelExtent = 512
+
+    /// Synchronously returns the cached preview thumbnail if present, without
+    /// touching the disk. Pair with `loadPreviewThumbnailAsync(forFileURL:maxPixelSize:)`.
+    func cachedPreviewThumbnail(forFileURL url: URL, maxPixelSize: Int) -> NSImage? {
+        cache.object(forKey: Self.previewThumbnailKey(for: url, maxPixelSize: maxPixelSize))
+    }
+
+    /// Decodes a downsampled thumbnail for image files off the main thread
+    /// and stores it in the cache. Returns nil when the file is not an image
+    /// or cannot be decoded, so callers keep showing the file icon.
+    /// `image(forImageFileURL:)` keeps the full-size bitmap, which is decoded
+    /// on first draw, so a grid of photos would block the main thread.
+    func loadPreviewThumbnailAsync(forFileURL url: URL, maxPixelSize: Int) async -> NSImage? {
+        let key = Self.previewThumbnailKey(for: url, maxPixelSize: maxPixelSize)
+        if let cached = cache.object(forKey: key) { return cached }
+        return await Task.detached(priority: .userInitiated) { [cache] in
+            guard Self.isImageFile(url),
+                  let image = Self.previewThumbnail(forImageFileURL: url, maxPixelSize: maxPixelSize) else {
+                return nil as NSImage?
+            }
+            cache.setObject(image, forKey: key)
+            return image
+        }.value
+    }
+
+    /// Warms the thumbnail cache in the background so a surface that is
+    /// about to show these files (e.g. the fan opening from a folder tile)
+    /// can render them on its first frame.
+    func preloadPreviewThumbnails(forFileURLs urls: [URL], maxPixelSize: Int) {
+        let uncached = urls.filter { cachedPreviewThumbnail(forFileURL: $0, maxPixelSize: maxPixelSize) == nil }
+        guard !uncached.isEmpty else { return }
+        Task.detached(priority: .utility) { [cache] in
+            for url in uncached {
+                guard Self.isImageFile(url),
+                      let image = Self.previewThumbnail(forImageFileURL: url, maxPixelSize: maxPixelSize) else {
+                    continue
+                }
+                cache.setObject(image, forKey: Self.previewThumbnailKey(for: url, maxPixelSize: maxPixelSize))
+            }
+        }
+    }
+
+    nonisolated private static func previewThumbnailKey(for url: URL, maxPixelSize: Int) -> NSString {
+        "thumbnail:\(maxPixelSize):\(url.path)" as NSString
+    }
+
+    nonisolated private static func previewThumbnail(forImageFileURL url: URL, maxPixelSize: Int) -> NSImage? {
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        let thumbnailOptions = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ] as CFDictionary
+        if let source = CGImageSourceCreateWithURL(url as CFURL, sourceOptions),
+           let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions) {
+            return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+        }
+
+        // Formats ImageIO cannot thumbnail (e.g. vector images) still load
+        // through NSImage, just not on the main thread.
+        return NSImage(contentsOf: url)
+    }
+
     func invalidate() {
         cache.removeAllObjects()
     }
@@ -127,6 +199,10 @@ final class IconCacheService {
     }
 
     private func isImageFileURL(_ url: URL) -> Bool {
+        Self.isImageFile(url)
+    }
+
+    nonisolated private static func isImageFile(_ url: URL) -> Bool {
         guard url.isFileURL else {
             return false
         }
