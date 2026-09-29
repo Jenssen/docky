@@ -8,6 +8,7 @@
 //  the magnification factor ever pop.
 //
 
+import AppKit
 import Combine
 import CoreGraphics
 import Foundation
@@ -42,7 +43,33 @@ final class DockMagnificationService {
     @ObservationIgnored private var rampStart: CFTimeInterval = 0
     @ObservationIgnored private var rampTimer: Timer?
 
-    private init() {}
+    /// Newest pointer position that has not been published yet. Mouse
+    /// events can arrive several times per display frame; publishing each
+    /// one re-renders the dock for positions that never reach the screen.
+    @ObservationIgnored private var pendingLocation: CGPoint?
+    @ObservationIgnored private var lastPublishTime: CFTimeInterval = 0
+    @ObservationIgnored private var publishTimer: Timer?
+    @ObservationIgnored private var frameInterval = DockMagnificationService.fastestFrameInterval()
+    @ObservationIgnored private var screenObserver: NSObjectProtocol?
+
+    private init() {
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.frameInterval = Self.fastestFrameInterval()
+            }
+        }
+    }
+
+    /// Frame duration of the fastest attached display, so publishing is
+    /// never slower than any screen the dock can be on.
+    private static func fastestFrameInterval() -> CFTimeInterval {
+        let framesPerSecond = NSScreen.screens.map(\.maximumFramesPerSecond).max() ?? 60
+        return 1.0 / CFTimeInterval(max(framesPerSecond, 60))
+    }
 
     /// Pointer has entered the dock hit region and we now have a live axis
     /// coordinate to track. Called from `.onContinuousHover` with
@@ -51,18 +78,63 @@ final class DockMagnificationService {
         // Sub-pixel pointer jitter would publish identical-looking values
         // and re-render the dock for nothing. Round-trip suppression keeps
         // mouseMoved spam from spiking CPU.
-        if let current = pointerLocation,
+        if let current = pendingLocation ?? pointerLocation,
            abs(current.x - location.x) < 0.25,
            abs(current.y - location.y) < 0.25 {
             // Skip publishing, but still nudge the ramp in case strength
             // was driving back toward zero.
         } else {
-            pointerLocation = location
-            if !isTrackingPointer {
-                isTrackingPointer = true
-            }
+            publishCoalesced(location)
         }
         beginRamp(to: 1)
+    }
+
+    /// Publishes at most one position per display frame. A position that
+    /// arrives after a full frame of quiet is published immediately; during
+    /// a burst the newest one is held and published when the frame is up,
+    /// so the last position of a move is never dropped.
+    private func publishCoalesced(_ location: CGPoint) {
+        let sinceLastPublish = CACurrentMediaTime() - lastPublishTime
+        if publishTimer == nil, sinceLastPublish >= frameInterval {
+            publish(location)
+            return
+        }
+
+        pendingLocation = location
+        guard publishTimer == nil else { return }
+        let timer = Timer(timeInterval: max(0, frameInterval - sinceLastPublish), repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.publishPending()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        publishTimer = timer
+    }
+
+    private func publishPending() {
+        publishTimer = nil
+        guard let pending = pendingLocation else { return }
+        pendingLocation = nil
+        // Timers fire a little late. Counting the frame from when it was
+        // due, not from when the timer ran, keeps a long move publishing
+        // at the display rate instead of drifting below it.
+        let now = CACurrentMediaTime()
+        let due = lastPublishTime + frameInterval
+        publish(pending, at: now - due < frameInterval ? due : now)
+    }
+
+    private func publish(_ location: CGPoint, at time: CFTimeInterval = CACurrentMediaTime()) {
+        lastPublishTime = time
+        pointerLocation = location
+        if !isTrackingPointer {
+            isTrackingPointer = true
+        }
+    }
+
+    private func discardPending() {
+        publishTimer?.invalidate()
+        publishTimer = nil
+        pendingLocation = nil
     }
 
     /// Pointer has left the dock hit region. We keep the last known
@@ -107,6 +179,9 @@ final class DockMagnificationService {
             strength = rampTarget
         }
         if rampTarget == 0 {
+            // A held position must not be published after the pointer has
+            // left, or tracking would restart with nothing driving it.
+            discardPending()
             pointerLocation = nil
             if isTrackingPointer {
                 isTrackingPointer = false
