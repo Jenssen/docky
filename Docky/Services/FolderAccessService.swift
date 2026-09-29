@@ -26,6 +26,7 @@ final class FolderAccessService: ObservableObject {
     private var watchersByURL: [URL: FolderWatcher] = [:]
     private var sortCache: [FolderSortCacheKey: (date: Date, items: [URL])] = [:]
     private let maxSortCacheEntries = 32
+    private var sortEntries: [URL: (date: Date, entry: FolderSortEntry)] = [:]
 
     private init() {}
 
@@ -63,18 +64,32 @@ final class FolderAccessService: ObservableObject {
             return cached.items
         }
 
-        let sorted = uncachedSortedItems(in: items, sortMode: sortMode)
+        // Prefer the metadata captured while the folder was read. URLs drop
+        // their prefetched resource values when the run loop turns, so
+        // building entries here would go back to disk for every item.
+        let now = Date()
+        var metadataDate = now
+        let entries = items.map { url -> FolderSortEntry in
+            if let captured = sortEntries[url],
+               now.timeIntervalSince(captured.date) < staleAfter {
+                metadataDate = min(metadataDate, captured.date)
+                return captured.entry
+            }
+            return FolderSortEntry(url: url)
+        }
+
+        let sorted = sortedURLs(from: entries, sortMode: sortMode)
         if sortCache.count >= maxSortCacheEntries {
             sortCache.removeAll()
         }
-        sortCache[key] = (Date(), sorted)
+        // Dated by the metadata, not the sort, so captured values never
+        // outlive `staleAfter`.
+        sortCache[key] = (metadataDate, sorted)
         return sorted
     }
 
-    private func uncachedSortedItems(in items: [URL], sortMode: FolderTileSortMode) -> [URL] {
-        let entries = items.map(FolderSortEntry.init)
-
-        return entries.sorted { lhs, rhs in
+    private func sortedURLs(from entries: [FolderSortEntry], sortMode: FolderTileSortMode) -> [URL] {
+        entries.sorted { lhs, rhs in
             switch sortMode {
             case .name:
                 let comparison = lhs.displayName.localizedStandardCompare(rhs.displayName)
@@ -215,35 +230,55 @@ final class FolderAccessService: ObservableObject {
             .localizedTypeDescriptionKey,
             .totalFileAllocatedSizeKey
         ]
-        guard let loaded = try? FileManager.default.contentsOfDirectory(
+        guard let listed = try? FileManager.default.contentsOfDirectory(
             at: normalizedFolderURL,
             includingPropertiesForKeys: keys,
             options: [.skipsHiddenFiles]
-        ).sorted(by: { Self.modDate($0) > Self.modDate($1) }) else {
+        ) else {
             return .unreadable
         }
 
-        contentsCache[normalizedFolderURL] = (Date(), loaded)
+        // The listing prefetched `keys`, so capturing the sort metadata now
+        // costs no extra disk access.
+        let now = Date()
+        removeSortEntries(forContentsOf: normalizedFolderURL)
+        let entries = listed.map(FolderSortEntry.init)
+        for entry in entries {
+            sortEntries[entry.url] = (now, entry)
+        }
+        let loaded = entries
+            .sorted(by: { $0.modificationDate > $1.modificationDate })
+            .map(\.url)
+
+        contentsCache[normalizedFolderURL] = (now, loaded)
         return .loaded(loaded)
     }
 
     func invalidateCache() {
         contentsCache.removeAll()
         sortCache.removeAll()
+        sortEntries.removeAll()
     }
 
     private func invalidateCache(for folderURL: URL) {
+        removeSortEntries(forContentsOf: folderURL.standardizedFileURL)
         contentsCache.removeValue(forKey: folderURL.standardizedFileURL)
         sortCache.removeAll()
+    }
+
+    private func removeSortEntries(forContentsOf normalizedFolderURL: URL) {
+        guard let cached = contentsCache[normalizedFolderURL] else {
+            return
+        }
+
+        for url in cached.items {
+            sortEntries.removeValue(forKey: url)
+        }
     }
 
     private func handleWatcherEvent(for folderURL: URL) {
         invalidateCache(for: folderURL)
         changeToken &+= 1
-    }
-
-    private static func modDate(_ url: URL) -> Date {
-        (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
     }
 }
 
