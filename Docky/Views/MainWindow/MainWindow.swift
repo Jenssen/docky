@@ -660,10 +660,17 @@ final class MainWindow: NSPanel {
             fullscreenRevealWorkItem = nil
         }
 
-        guard visibilityState != state else {
-            applyCurrentFrame(animated: false)
-            return
-        }
+        // Re-requesting the current state must not touch the frame. During a
+        // reveal the panel slides under the cursor, the content view's
+        // tracking area fires `mouseEntered`, and `pointerDidEnterWindow`
+        // asks for `.visible` again while the slide is still in flight. A
+        // non-animated `setFrame` here would snap the panel fully on screen,
+        // after which the still-running animator reapplies its interpolated
+        // (near-hidden) frame and finishes the slide, producing a visible
+        // show / hide / show flicker. Layout-input changes already re-apply
+        // the frame through their own observers, so nothing is lost by
+        // returning early.
+        guard visibilityState != state else { return }
 
         visibilityState = state
         applyCurrentFrame(animated: animated)
