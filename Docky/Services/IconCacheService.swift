@@ -57,6 +57,26 @@ final class IconCacheService {
         return image
     }
 
+    /// For views outside the dock tiles: the override when one is set,
+    /// otherwise the LaunchServices icon. Override images have no transparent
+    /// margin, so this adds the margin of a macOS app icon (100 px of 1024).
+    func displayedIcon(forBundleIdentifier bundleIdentifier: String) -> NSImage {
+        guard let url = DockyPreferences.shared.effectiveAppIconOverrideURL(forBundleIdentifier: bundleIdentifier),
+              let override = image(forImageFileURL: url) else {
+            return icon(forBundleIdentifier: bundleIdentifier)
+        }
+        let key = "displayed:\(url.path)" as NSString
+        if let cached = cache.object(forKey: key) { return cached }
+        let extent = Self.normalizedIconExtent
+        let inset = extent * 100 / 1024
+        let image = NSImage(size: NSSize(width: extent, height: extent), flipped: false) { rect in
+            override.draw(in: rect.insetBy(dx: inset, dy: inset))
+            return true
+        }
+        cache.setObject(image, forKey: key)
+        return image
+    }
+
     /// Synchronously returns the cached icon if present, without
     /// triggering a LaunchServices fetch. Use this to render hot
     /// icons inline and fall back to `loadIconAsync(forBundleIdentifier:)`
