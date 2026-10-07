@@ -330,7 +330,7 @@ struct AppFolderTileView: View {
             return overrideImage
         }
 
-        return IconCacheService.shared.icon(forBundleIdentifier: bundleIdentifier)
+        return IconCacheService.shared.flattenedIcon(forBundleIdentifier: bundleIdentifier)
     }
 }
 
