@@ -1707,8 +1707,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
     }
 
     /// Whether running apps show their notification badge (the red count,
-    /// like Mail's unread total) on their dock tile. Read from the system
-    /// Dock via accessibility, see `DockBadgeService`.
+    /// like Mail's unread total) on their dock tile. See `DockBadgeService`.
     var showsAppBadges: Bool {
         didSet {
             guard showsAppBadges != oldValue else { return }
