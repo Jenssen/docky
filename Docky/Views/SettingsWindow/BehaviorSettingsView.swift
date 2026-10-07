@@ -580,6 +580,26 @@ struct BehaviorSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.vertical, 4)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Icon Size in Opened Folders")
+                        .font(.headline)
+
+                    Spacer()
+
+                    Text("\(Int(preferences.appFolderIconSize)) pt")
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+
+                Slider(value: $preferences.appFolderIconSize, in: 56...128, step: 1)
+
+                Text("Size of the app icons in an opened app folder. The folder window grows and shrinks with it. Default is 96 pt.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 4)
         }
     }
 
