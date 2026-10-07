@@ -2459,8 +2459,7 @@ enum LaunchpadSortMode: String, CaseIterable, Codable, Identifiable {
         }
     }
 
-    /// Icon edge in an opened app folder. The popover's cells, spacing and
-    /// window size follow it.
+    /// The opened folder's cells, spacing and window size follow this size.
     var appFolderIconSize: CGFloat {
         didSet {
             let clampedValue = min(
