@@ -37,8 +37,7 @@ final class IconCacheService {
     /// gain in the dock and extra per-frame resampling work during magnification.
     private static let normalizedIconExtent: CGFloat = 256
 
-    /// Point size of `flattenedIcon`. Covers a folder preview icon at the
-    /// largest magnified size, about 110 pt.
+    /// Covers a folder preview icon at the largest magnified size, about 110 pt.
     private static let flattenedIconExtent: CGFloat = 128
 
     private init() {}
@@ -61,10 +60,9 @@ final class IconCacheService {
         return image
     }
 
-    /// The app icon drawn once into a bitmap. With the dark icon style on
-    /// macOS 26, folder previews sometimes drew the light variant of the
-    /// LaunchServices icon while magnification resized them. A bitmap holds
-    /// only one variant, so the preview can not flip.
+    /// With the dark icon style on macOS 26, folder previews sometimes drew
+    /// the light variant of the LaunchServices icon while magnification
+    /// resized them. A bitmap has only one variant, so it can not flip.
     func flattenedIcon(forBundleIdentifier bundleIdentifier: String) -> NSImage {
         let key = "flat:\(bundleIdentifier)" as NSString
         if let cached = cache.object(forKey: key) { return cached }
