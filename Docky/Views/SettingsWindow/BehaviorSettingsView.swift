@@ -340,7 +340,7 @@ struct BehaviorSettingsView: View {
                 Toggle("Show Notification Badges", isOn: $preferences.showsAppBadges)
                     .font(.headline)
 
-                Text("Paints the red notification count (like Mail's unread total) on running app tiles. Read from the system Dock, so it needs Accessibility permission.")
+                Text("Paints the red notification count (like Mail's unread total) on running app tiles.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
