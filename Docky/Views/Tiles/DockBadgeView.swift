@@ -23,20 +23,27 @@ struct DockBadgeView: View {
     var body: some View {
         GeometryReader { proxy in
             let side = min(proxy.size.width, proxy.size.height)
+            // Anchor to the centered icon square, not the tile: the tile also
+            // holds the vertical tile padding, which does not grow with
+            // magnification.
             badge(forTileSide: side)
-                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topTrailing)
+                .frame(width: side, height: side, alignment: .topTrailing)
+                .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .allowsHitTesting(false)
     }
 
     @ViewBuilder
     private func badge(forTileSide side: CGFloat) -> some View {
-        let height = max(8, side * 0.285 * scale)
-        let fontSize = height * 0.62
-        let horizontalPadding = height * 0.28
+        // Close to the macOS 26 Dock badge, a bit smaller.
+        let height = max(8, side * 0.36 * scale)
+        let fontSize = height * 0.58
+        // Up to two characters fit in a circle. Longer labels get a capsule
+        // with room around the text.
+        let horizontalPadding = height * (displayText.count > 2 ? 0.28 : 0.15)
 
         Text(displayText)
-            .font(.system(size: fontSize, weight: .semibold))
+            .font(.system(size: fontSize, weight: .regular))
             .foregroundStyle(.white)
             .monospacedDigit()
             .lineLimit(1)
@@ -48,9 +55,13 @@ struct DockBadgeView: View {
                     .fill(Color.red)
                     .shadow(color: .black.opacity(0.3), radius: max(1, height * 0.08), y: max(0.5, height * 0.03))
             )
-            // Sit just inside the icon's top-trailing corner: half a badge
-            // height down, and a quarter height to the left of the corner.
-            .offset(x: height * 0.05, y: height * verticalOffsetFactor)
+            // Center on the corner of the visible icon, like the system Dock.
+            // A macOS app icon leaves a transparent margin of 100 px on each
+            // side of its 1024 px canvas.
+            .offset(
+                x: height * 0.3 - side * 100 / 1024,
+                y: side * 100 / 1024 + height * (verticalOffsetFactor - 0.6)
+            )
     }
 
     /// Clamp absurdly long status strings so a badge can't blow out the
