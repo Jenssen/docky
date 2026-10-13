@@ -439,20 +439,12 @@ private struct StartMenuView: View {
         .onAppear { searchFocused = true }
     }
 
+    private var cornerRadius: CGFloat { DockChromeSurface.cornerRadius(maximum: 12) }
+
     private var mainPanel: some View {
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         return ZStack {
-            // Glass + window tint + gradient stroke, layered in the same
-            // order the dock's `chromeBackground` uses so the Start menu
-            // tracks any tint color or opacity the user picks for the
-            // dock chrome.
-            Color.clear
-                .dockyGlass(in: shape)
-                .overlay {
-                    shape.fill(Color(nsColor: preferences.effectiveWindowTintColor))
-                        .opacity(preferences.effectiveWindowTintOpacity)
-                }
-                .dockyGlassBorder(in: shape)
+            DockChromeSurface(cornerRadius: cornerRadius)
 
             VStack(spacing: 0) {
                 searchField
@@ -476,15 +468,9 @@ private struct StartMenuView: View {
     }
 
     private var sidePanel: some View {
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         return ZStack {
-            Color.clear
-                .dockyGlass(in: shape)
-                .overlay {
-                    shape.fill(Color(nsColor: preferences.effectiveWindowTintColor))
-                        .opacity(preferences.effectiveWindowTintOpacity)
-                }
-                .dockyGlassBorder(in: shape)
+            DockChromeSurface(cornerRadius: cornerRadius)
 
             allAppsSidePanel
         }

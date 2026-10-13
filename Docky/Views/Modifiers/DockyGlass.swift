@@ -138,7 +138,7 @@ private struct SkyLightGlassFallback: View {
 /// preferred radius on each `order(...)`, so this never wins long-term in
 /// those windows — it only matters for windows that don't otherwise ask
 /// for any window-level blur.
-private struct SkyLightHostBlurInstaller: NSViewRepresentable {
+struct SkyLightHostBlurInstaller: NSViewRepresentable {
     var blurRadius: Int = 30
 
     func makeNSView(context: Context) -> InstallerView {

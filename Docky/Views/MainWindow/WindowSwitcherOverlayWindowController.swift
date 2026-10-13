@@ -224,7 +224,7 @@ private struct WindowSwitcherOverlayView: View {
     }
 
     private var containerCornerRadius: CGFloat {
-        cardCornerRadius + containerPadding
+        DockChromeSurface.cornerRadius(maximum: cardCornerRadius + containerPadding)
     }
 
     /// Outer corner radius for cards/rows touching the chrome edge —
@@ -307,8 +307,7 @@ private struct WindowSwitcherOverlayView: View {
             }
             .frame(maxWidth: max(0, containerSize.width - 80))
             .fixedSize(horizontal: true, vertical: true)
-            .background(.primary.opacity(0.18))
-            .background(.ultraThinMaterial)
+            .background(DockChromeSurface(cornerRadius: containerCornerRadius))
             .clipShape(RoundedRectangle(cornerRadius: containerCornerRadius, style: .continuous))
             .onChange(of: switcher.selectedWindowIdentifier) { selection in
                 guard let selection else { return }
@@ -323,7 +322,7 @@ private struct WindowSwitcherOverlayView: View {
         // List chrome is tighter than thumbnail mode — the container is
         // text-only so a small radius reads cleaner than the chunky 46pt
         // used for the thumbnail card stack.
-        WindowSwitcherListView(cornerRadius: 16, interiorPadding: interiorPadding)
+        WindowSwitcherListView(cornerRadius: DockChromeSurface.cornerRadius(maximum: 16), interiorPadding: interiorPadding)
     }
 
     private var emptyStateCard: some View {
@@ -342,9 +341,8 @@ private struct WindowSwitcherOverlayView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
-        .background(.primary.opacity(0.18))
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(DockChromeSurface(cornerRadius: DockChromeSurface.cornerRadius(maximum: 16)))
+        .clipShape(RoundedRectangle(cornerRadius: DockChromeSurface.cornerRadius(maximum: 16), style: .continuous))
     }
 }
 
@@ -399,8 +397,7 @@ private struct WindowSwitcherListView: View {
             .frame(width: listWidth)
             .frame(maxHeight: CGFloat(maxVisibleRows) * rowHeight + 16)
             .fixedSize(horizontal: true, vertical: true)
-            .background(.primary.opacity(0.18))
-            .background(.ultraThinMaterial)
+            .background(DockChromeSurface(cornerRadius: cornerRadius))
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .onChange(of: switcher.selectedWindowIdentifier) { selection in
                 guard let selection else { return }

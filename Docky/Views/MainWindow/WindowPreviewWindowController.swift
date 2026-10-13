@@ -363,7 +363,7 @@ private struct WindowPreviewView: View {
         innerPreviewCornerRadius + cardPadding
     }
     private var containerCornerRadius: CGFloat {
-        cardCornerRadius + containerPadding
+        DockChromeSurface.cornerRadius(maximum: cardCornerRadius + containerPadding)
     }
     private var edgeContentCornerRadius: CGFloat {
         max(0, containerCornerRadius - interiorPadding)
@@ -410,8 +410,7 @@ private struct WindowPreviewView: View {
             }
             .frame(maxWidth: 720)
             .fixedSize(horizontal: true, vertical: true)
-            .background(.primary.opacity(0.18))
-            .background(.ultraThinMaterial)
+            .background(DockChromeSurface(cornerRadius: containerCornerRadius))
             .clipShape(RoundedRectangle(cornerRadius: containerCornerRadius, style: .continuous))
             .onChange(of: preview.selectedWindowIdentifier) { selection in
                 guard let selection else { return }
@@ -424,7 +423,7 @@ private struct WindowPreviewView: View {
 
     private var listLayout: some View {
         WindowPreviewListView(
-            cornerRadius: 16,
+            cornerRadius: DockChromeSurface.cornerRadius(maximum: 16),
             interiorPadding: interiorPadding
         )
     }
@@ -629,8 +628,7 @@ private struct WindowPreviewListView: View {
             .frame(width: listWidth)
             .frame(maxHeight: CGFloat(maxVisibleRows) * rowHeight + 16)
             .fixedSize(horizontal: true, vertical: true)
-            .background(.primary.opacity(0.18))
-            .background(.ultraThinMaterial)
+            .background(DockChromeSurface(cornerRadius: cornerRadius))
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .onChange(of: preview.selectedWindowIdentifier) { selection in
                 guard let selection else { return }
