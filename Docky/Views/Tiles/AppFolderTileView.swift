@@ -189,8 +189,6 @@ struct AppFolderTileView: View {
                         .strokeBorder(.white.opacity(0.1), lineWidth: 1)
                 }
                 .dockyGlassBorder(in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .padding(.top, 1)
-                .padding(.bottom, 2)
 
             VStack(spacing: gap) {
                 ForEach(0..<2, id: \.self) { row in
