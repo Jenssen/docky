@@ -2225,6 +2225,11 @@ struct TileView: View {
             return [.one]
         }
 
+        // An external widget that declares 4 tiles gets it in the menu; for
+        // built-in widgets 4 tiles stays a theme-only span.
+        if case .external = widget.kind {
+            return widget.kind.supportedSpans
+        }
         return widget.kind.supportedSpans.filter { $0 != .four }
     }
 
