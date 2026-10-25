@@ -225,9 +225,25 @@ final class MainWindow: NSPanel {
 
     /// The frame Docky claims for content reservation, or nil when Docky is
     /// hidden / off-screen / not currently rendering. Used by services that
-    /// keep other apps' windows out of Docky's way.
+    /// keep other apps' windows out of Docky's way. Only the chrome's depth
+    /// counts, so the magnification headroom does not push windows away.
     var currentReservationFrame: CGRect? {
-        visibilityState == .visible ? frame : nil
+        guard visibilityState == .visible else { return nil }
+        guard let chrome = chromeScreenFrame() else { return frame }
+        // A window edge must not land on the chrome's border.
+        let gap: CGFloat = 4
+        switch DockyPreferences.shared.windowPosition.resolved(systemOrientation: DockSettingsService.shared.orientation) {
+        case .bottom:
+            return CGRect(x: frame.minX, y: chrome.minY, width: frame.width, height: chrome.height.rounded(.up) + gap)
+        case .top:
+            let depth = chrome.height.rounded(.up) + gap
+            return CGRect(x: frame.minX, y: chrome.maxY - depth, width: frame.width, height: depth)
+        case .left:
+            return CGRect(x: chrome.minX, y: frame.minY, width: chrome.width.rounded(.up) + gap, height: frame.height)
+        case .right:
+            let depth = chrome.width.rounded(.up) + gap
+            return CGRect(x: chrome.maxX - depth, y: frame.minY, width: depth, height: frame.height)
+        }
     }
 
     /// Screen-coordinate rect of the visible chrome (the dock pill itself,
